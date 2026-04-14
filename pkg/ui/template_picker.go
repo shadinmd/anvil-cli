@@ -75,7 +75,7 @@ func (m *TemplatePickerModel) View() tea.View {
 
 	// Sidebar
 	var sidebarLines []string
-	
+
 	// Blank Project Option
 	blankStyle := lipgloss.NewStyle().Foreground(Color.Foreground)
 	if m.cursor == 0 {

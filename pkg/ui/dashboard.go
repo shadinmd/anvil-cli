@@ -270,14 +270,10 @@ func (m *DashboardModel) View() tea.View {
 
 	var s strings.Builder
 
-	// Header
-	header := titleStyle.Width(m.width - 2).Render("Anvil")
-	s.WriteString(header + "\n")
-
 	// Calculate layout
-	sidebarWidth := 26
-	contentWidth := m.width - sidebarWidth - 2 // Match header width
-	mainHeight := m.height - 6
+	sidebarWidth := 25
+	contentWidth := m.width - sidebarWidth - 1 // Match header width
+	mainHeight := m.height - 2
 
 	// Search box
 	searchStyle := borderStyle
