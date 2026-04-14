@@ -148,7 +148,7 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch k {
-		case "q":
+		case "q", "esc":
 			return m, tea.Quit
 
 		case "/":
