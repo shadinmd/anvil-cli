@@ -28,8 +28,8 @@ type Pane struct {
 }
 
 // tmux.ProjectConfig implementation
-func (p Project) GetId() string      { return p.Id }
-func (p Project) GetDir() string     { return p.Dir }
+func (p Project) GetId() string  { return p.Id }
+func (p Project) GetDir() string { return p.Dir }
 func (p Project) GetWindows() []tmux.WindowConfig {
 	res := make([]tmux.WindowConfig, len(p.Windows))
 	for i, w := range p.Windows {
@@ -52,7 +52,6 @@ func (w Window) GetPanes() []tmux.PaneConfig {
 // tmux.PaneConfig implementation
 func (p Pane) GetCmd() string   { return p.Cmd }
 func (p Pane) GetSplit() string { return p.Split }
-
 
 func GetAllProjects() []Project {
 	lookup := make(map[string]bool)
@@ -104,7 +103,7 @@ func UpdateProject(targetId string, name, dir string, windows []Window) error {
 
 	// Create new ID in case name changed
 	newId := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-	
+
 	// Ensure new name doesn't collide with ANOTHER project
 	if newId != targetId {
 		for _, p := range projects {

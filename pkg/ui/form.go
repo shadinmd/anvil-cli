@@ -101,9 +101,9 @@ func (m *FormModel) addWindow(name string) {
 	}
 
 	m.fields = append(m.fields,
-		FormField{fieldType: FieldWindowName, label: fmt.Sprintf("Window %d Name", winIdx+1), value: name, windowIdx: winIdx},
+		FormField{fieldType: FieldWindowName, label: fmt.Sprintf("Window %d Name", winIdx+1), value: "", windowIdx: winIdx},
 		FormField{fieldType: FieldWindowLayout, label: "Layout", isChoice: true, choices: []string{"horizontal", "vertical", "tiled"}, windowIdx: winIdx},
-		FormField{fieldType: FieldPaneCmd, label: "Pane 1", value: "nvim .", windowIdx: winIdx},
+		FormField{fieldType: FieldPaneCmd, label: "Pane 1", value: "", windowIdx: winIdx},
 	)
 }
 
@@ -173,7 +173,7 @@ func (m *FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scrollToCursor()
 			return m, nil
 		case "ctrl+w":
-			m.addWindow("New Window")
+			m.addWindow("")
 			m.cursor = len(m.fields) - 3
 			m.scrollToCursor()
 			return m, nil
@@ -509,4 +509,6 @@ func (m *FormModel) GetProjectData() (string, string, []anvil.Window) {
 	}
 
 	return name, dir, resWindows
+}
+s
 }

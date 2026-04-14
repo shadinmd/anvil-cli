@@ -346,12 +346,7 @@ func (m *DashboardModel) View() tea.View {
 						cmd = "default shell"
 					}
 
-					split := "vertical"
-					if pane.Split == "h" {
-						split = "horizontal"
-					}
-
-					paneLine := fmt.Sprintf(" %s %s (%s)", panePrefix, cmd, helpStyle.Render(split))
+					paneLine := fmt.Sprintf(" %s %s", panePrefix, cmd)
 					cb.WriteString(paneLine + "\n")
 				}
 			}
