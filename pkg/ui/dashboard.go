@@ -214,14 +214,35 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func fuzzyMatch(s, query string) bool {
+	s = strings.ToLower(s)
+	query = strings.ToLower(query)
+	if len(query) == 0 {
+		return true
+	}
+	if len(query) > len(s) {
+		return false
+	}
+
+	qi := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == query[qi] {
+			qi++
+		}
+		if qi == len(query) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *DashboardModel) filterProjects() {
 	if m.searchQuery == "" {
 		m.projects = m.allProjects
 	} else {
 		var filtered []anvil.Project
-		query := strings.ToLower(m.searchQuery)
 		for _, p := range m.allProjects {
-			if strings.Contains(strings.ToLower(p.Name), query) || strings.Contains(strings.ToLower(p.Id), query) {
+			if fuzzyMatch(p.Name, m.searchQuery) || fuzzyMatch(p.Id, m.searchQuery) {
 				filtered = append(filtered, p)
 			}
 		}
@@ -235,7 +256,6 @@ func (m *DashboardModel) filterProjects() {
 		}
 	}
 }
-
 func (m *DashboardModel) View() tea.View {
 	if m.width == 0 {
 		return tea.NewView("Loading...")
