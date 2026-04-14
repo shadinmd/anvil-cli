@@ -66,9 +66,9 @@ func (m *ListModel) View() tea.View {
 
 	var items []string
 	for i, p := range m.projects {
-		status := lipgloss.NewStyle().Foreground(grey).Render("○")
+		status := lipgloss.NewStyle().Foreground(Color.Secondary).Render("○")
 		if p.Active {
-			status = lipgloss.NewStyle().Foreground(green).Render("●")
+			status = lipgloss.NewStyle().Foreground(Color.Success).Render("●")
 		}
 
 		line := fmt.Sprintf("%s %s", status, p.Name)

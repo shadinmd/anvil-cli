@@ -35,6 +35,7 @@ type FormField struct {
 type FormModel struct {
 	fields   []FormField
 	cursor   int
+	offset   int
 	width    int
 	height   int
 	active   bool
@@ -106,8 +107,37 @@ func (m *FormModel) addWindow(name string) {
 	)
 }
 
+func (m *FormModel) scrollToCursor() {
+	if m.height <= 10 {
+		return
+	}
+
+	// Each field takes roughly 3 lines (label + input + spacing)
+	// Calculate how many fields can fit in the available height
+	availableHeight := m.height - 12 // Account for title, help text, and margins
+	pageSize := availableHeight / 3
+	if pageSize < 1 {
+		pageSize = 1
+	}
+
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	} else if m.cursor >= m.offset+pageSize {
+		m.offset = m.cursor - pageSize + 1
+	}
+}
+
 func (m *FormModel) Init() tea.Cmd {
 	return nil
+}
+
+func (m *FormModel) isComplete() bool {
+	for _, f := range m.fields {
+		if !f.isChoice && f.value == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -132,35 +162,48 @@ func (m *FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.cursor = (m.cursor + 1) % len(m.fields)
+			m.scrollToCursor()
 			return m, nil
 		case "down":
 			m.cursor = (m.cursor + 1) % len(m.fields)
+			m.scrollToCursor()
 			return m, nil
 		case "shift+tab", "up":
 			m.cursor = (m.cursor - 1 + len(m.fields)) % len(m.fields)
+			m.scrollToCursor()
 			return m, nil
 		case "ctrl+w":
 			m.addWindow("New Window")
 			m.cursor = len(m.fields) - 3
+			m.scrollToCursor()
 			return m, nil
 		case "ctrl+d":
 			if field.fieldType >= FieldWindowName {
 				m.removeWindow(field.windowIdx)
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "ctrl+n":
 			if field.fieldType >= FieldWindowName {
 				m.addPane(field.windowIdx)
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "ctrl+x":
 			if field.fieldType == FieldPaneCmd {
 				m.removePane(m.cursor)
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "enter":
+			if m.isComplete() && m.validate() {
+				m.Done = true
+				return m, nil
+			}
+
 			if m.cursor < len(m.fields)-1 {
 				m.cursor++
+				m.scrollToCursor()
 			} else {
 				if m.validate() {
 					m.Done = true
@@ -208,10 +251,16 @@ func (m *FormModel) addPane(winIdx int) {
 	insertIdx := -1
 	paneCount := 0
 	for i, f := range m.fields {
-		if f.windowIdx == winIdx && f.fieldType == FieldPaneCmd {
+		if f.windowIdx == winIdx {
 			insertIdx = i
-			paneCount++
+			if f.fieldType == FieldPaneCmd {
+				paneCount++
+			}
 		}
+	}
+
+	if insertIdx == -1 {
+		return
 	}
 
 	newPane := FormField{
@@ -335,9 +384,26 @@ func (m *FormModel) View() tea.View {
 	if m.isEdit {
 		title = "Edit Project"
 	}
-	s.WriteString(titleStyle.Width(m.width - 2).Render(title) + "\n")
+	s.WriteString(titleStyle.Width(m.width-2).Render(title) + "\n")
 
-	for i, f := range m.fields {
+	// Available field height
+	maxHeight := m.height - 12
+	linesRendered := 0
+
+	for i := m.offset; i < len(m.fields); i++ {
+		f := m.fields[i]
+
+		// Approximate line counts per field (header/spacing + input)
+		fieldLines := 2
+		if f.fieldType == FieldWindowName {
+			fieldLines = 4
+		}
+
+		if linesRendered+fieldLines > maxHeight {
+			s.WriteString(helpStyle.Render(fmt.Sprintf("\n... and %d more fields", len(m.fields)-i)) + "\n")
+			break
+		}
+
 		// Indentation for hierarchy
 		indentWidth := 0
 		if f.fieldType == FieldWindowName || f.fieldType == FieldWindowLayout {
@@ -348,16 +414,17 @@ func (m *FormModel) View() tea.View {
 
 		if f.fieldType == FieldWindowName {
 			s.WriteString("\n" + strings.Repeat(" ", indentWidth) + labelStyle.Render(fmt.Sprintf(" Window #%d ", f.windowIdx+1)) + "\n")
+			linesRendered += 2
 		}
 
 		labelStr := f.label
 		labelStyle := lipgloss.NewStyle().Width(20)
 		if i == m.cursor {
 			labelStr = "● " + f.label
-			labelStyle = labelStyle.Foreground(cyan).Bold(true)
+			labelStyle = lipgloss.NewStyle().Foreground(Color.Primary).Bold(true)
 		} else {
 			labelStr = "○ " + f.label
-			labelStyle = labelStyle.Foreground(white)
+			labelStyle = lipgloss.NewStyle().Foreground(Color.Secondary)
 		}
 		labelView := labelStyle.Render(labelStr)
 
@@ -375,28 +442,29 @@ func (m *FormModel) View() tea.View {
 		} else {
 			valueDisplay = f.value
 			if i == m.cursor {
-				valueDisplay += lipgloss.NewStyle().Foreground(cyan).Blink(true).Render("|")
+				valueDisplay += lipgloss.NewStyle().Foreground(Color.Primary).Blink(true).Render("|")
 				if f.suggestion != "" {
 					ghostText := strings.TrimPrefix(f.suggestion, f.value)
 					valueDisplay += helpStyle.Render(ghostText)
 				}
 			}
-			
+
 			style := borderStyle
 			if i == m.cursor {
 				style = focusedBorderStyle
 			}
-			
+
 			valueDisplay = style.Width(m.width - 20 - indentWidth - 6).Render(valueDisplay)
 		}
 
 		row := lipgloss.JoinHorizontal(lipgloss.Center, labelView, valueDisplay)
 		s.WriteString(lipgloss.NewStyle().MarginLeft(indentWidth).Render(row) + "\n")
+		linesRendered += 2
 	}
 
 	helpLine1 := "[tab] Move • [ctrl+w] Add Window • [ctrl+d] Del Window"
 	helpLine2 := "[ctrl+n] Add Pane • [ctrl+x] Del Pane • [enter] Submit • [esc] Cancel"
-	
+
 	s.WriteString("\n" + statusStyle.Render(helpLine1) + "\n")
 	s.WriteString(statusStyle.Render(helpLine2))
 

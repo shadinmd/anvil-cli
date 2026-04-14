@@ -11,50 +11,43 @@ import (
 )
 
 var (
-	// Colors
-	cyan  = lipgloss.Color("#89dceb") // Sky
-	green = lipgloss.Color("#a6e3a1") // Green
-	red   = lipgloss.Color("#f38ba8") // Red
-	grey  = lipgloss.Color("#6c7086") // Overlay0
-	white = lipgloss.Color("#cdd6f4") // Text
-
 	// Styles
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(cyan).
+			Foreground(Color.Primary).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(white).
+			BorderForeground(Color.Foreground).
 			Align(lipgloss.Center)
 
 	borderStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(white).
+			BorderForeground(Color.Foreground).
 			Padding(0, 1)
 
 	focusedBorderStyle = borderStyle.Copy().
-				BorderForeground(cyan).
+				BorderForeground(Color.Primary).
 				BorderStyle(lipgloss.ThickBorder())
 
 	sidebarItemStyle = lipgloss.NewStyle().
 				PaddingLeft(1).
-				Foreground(white)
+				Foreground(Color.Foreground)
 
 	selectedSidebarItemStyle = sidebarItemStyle.Copy().
-					Foreground(cyan).
+					Foreground(Color.Primary).
 					Bold(true)
 
 	helpStyle = lipgloss.NewStyle().
-			Foreground(grey)
+			Foreground(Color.Secondary)
 
 	statusStyle = lipgloss.NewStyle().
 			Inherit(helpStyle)
 
 	errorStyle = lipgloss.NewStyle().
-			Foreground(red).
+			Foreground(Color.Error).
 			Bold(true)
 
 	labelStyle = lipgloss.NewStyle().
-			Foreground(cyan).
+			Foreground(Color.Primary).
 			Bold(true)
 )
 
@@ -118,7 +111,7 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		k := msg.String()
-		
+
 		if k == "ctrl+c" {
 			return m, tea.Quit
 		}
@@ -234,7 +227,7 @@ func (m *DashboardModel) filterProjects() {
 		}
 		m.projects = filtered
 	}
-	
+
 	if m.cursor >= len(m.projects) {
 		m.cursor = 0
 		if len(m.projects) > 0 {
@@ -271,7 +264,7 @@ func (m *DashboardModel) View() tea.View {
 	searchText := m.searchQuery
 	if m.searching {
 		searchStyle = focusedBorderStyle
-		searchText += lipgloss.NewStyle().Foreground(cyan).Blink(true).Render("|")
+		searchText += lipgloss.NewStyle().Foreground(Color.Primary).Blink(true).Render("|")
 	} else if searchText == "" {
 		searchText = helpStyle.Render("Search...")
 	}
@@ -280,9 +273,9 @@ func (m *DashboardModel) View() tea.View {
 	// Sidebar List
 	var sidebarLines []string
 	for i, p := range m.projects {
-		status := lipgloss.NewStyle().Foreground(grey).Render("○")
+		status := lipgloss.NewStyle().Foreground(Color.Secondary).Render("○")
 		if p.Active {
-			status = lipgloss.NewStyle().Foreground(green).Render("●")
+			status = lipgloss.NewStyle().Foreground(Color.Success).Render("●")
 		}
 
 		line := fmt.Sprintf("%s %s", status, p.Name)
@@ -304,9 +297,9 @@ func (m *DashboardModel) View() tea.View {
 	var content string
 	if len(m.projects) > 0 {
 		p := m.projects[m.cursor]
-		statusText := lipgloss.NewStyle().Foreground(grey).Render("Inactive")
+		statusText := lipgloss.NewStyle().Foreground(Color.Secondary).Render("Inactive")
 		if p.Active {
-			statusText = lipgloss.NewStyle().Foreground(green).Bold(true).Render("Active")
+			statusText = lipgloss.NewStyle().Foreground(Color.Success).Bold(true).Render("Active")
 		}
 
 		var cb strings.Builder
@@ -328,20 +321,20 @@ func (m *DashboardModel) View() tea.View {
 				if layout == "" {
 					layout = "default"
 				}
-				
+
 				windowLine := fmt.Sprintf(" %s %s [%s]", windowPrefix, w.Name, helpStyle.Render(layout))
 				cb.WriteString(windowLine + "\n")
 
 				for j, pane := range w.Panes {
 					isLastPane := j == len(w.Panes)-1
-					
+
 					var panePrefix string
 					if isLastWindow {
 						panePrefix = "    "
 					} else {
 						panePrefix = "│   "
 					}
-					
+
 					if isLastPane {
 						panePrefix += "└──"
 					} else {
@@ -352,12 +345,12 @@ func (m *DashboardModel) View() tea.View {
 					if cmd == "" {
 						cmd = "default shell"
 					}
-					
+
 					split := "vertical"
 					if pane.Split == "h" {
 						split = "horizontal"
 					}
-					
+
 					paneLine := fmt.Sprintf(" %s %s (%s)", panePrefix, cmd, helpStyle.Render(split))
 					cb.WriteString(paneLine + "\n")
 				}
