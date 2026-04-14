@@ -510,5 +510,3 @@ func (m *FormModel) GetProjectData() (string, string, []anvil.Window) {
 
 	return name, dir, resWindows
 }
-s
-}
