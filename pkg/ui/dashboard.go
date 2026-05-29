@@ -55,10 +55,12 @@ type DashboardModel struct {
 	allProjects []anvil.Project
 	projects    []anvil.Project
 	cursor      int
+	offset      int
 	width       int
 	height      int
 	err         error
 	form        *FormModel
+	confirm     *ConfirmModel
 	searchQuery string
 }
 
@@ -74,7 +76,46 @@ func (m *DashboardModel) Init() tea.Cmd {
 	return nil
 }
 
+func (m *DashboardModel) scrollToCursor() {
+	footerHeight := 2
+	if m.err != nil {
+		footerHeight = 3
+	}
+	mainHeight := m.height - footerHeight
+	pageSize := mainHeight - 5
+	if pageSize < 1 {
+		pageSize = 1
+	}
+
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	} else if m.cursor >= m.offset+pageSize {
+		m.offset = m.cursor - pageSize + 1
+	}
+}
+
 func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.confirm != nil {
+		newConfirm, cmd := m.confirm.Update(msg)
+		m.confirm = newConfirm.(*ConfirmModel)
+		if m.confirm.Done {
+			if m.confirm.Confirm {
+				if len(m.projects) > 0 {
+					p := m.projects[m.cursor]
+					if err := anvil.DeleteProject(p.Id); err != nil {
+						m.err = err
+						logger.Logf("Error deleting project: %v", err)
+					} else {
+						m.allProjects = anvil.GetAllProjects()
+						m.filterProjects()
+					}
+				}
+			}
+			m.confirm = nil
+		}
+		return m, cmd
+	}
+
 	if m.form != nil {
 		newForm, cmd := m.form.Update(msg)
 		m.form = newForm.(*FormModel)
@@ -107,6 +148,7 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.scrollToCursor()
 
 	case tea.KeyPressMsg:
 		k := msg.String()
@@ -118,11 +160,13 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "ctrl+p":
 			if m.cursor > 0 {
 				m.cursor--
+				m.scrollToCursor()
 			}
 
 		case "down", "ctrl+n":
 			if m.cursor < len(m.projects)-1 {
 				m.cursor++
+				m.scrollToCursor()
 			}
 
 		case "ctrl+N":
@@ -131,6 +175,12 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+e":
 			if len(m.projects) > 0 {
 				m.form = NewEditProjectForm(m.projects[m.cursor])
+			}
+
+		case "ctrl+d":
+			if len(m.projects) > 0 {
+				p := m.projects[m.cursor]
+				m.confirm = NewConfirmModel("Delete Project", fmt.Sprintf("Are you sure you want to delete '%s'?", p.Name))
 			}
 
 		case "enter":
@@ -230,6 +280,7 @@ func (m *DashboardModel) filterProjects() {
 			m.cursor = len(m.projects) - 1
 		}
 	}
+	m.scrollToCursor()
 }
 func (m *DashboardModel) View() tea.View {
 	if m.width == 0 {
@@ -243,12 +294,22 @@ func (m *DashboardModel) View() tea.View {
 		return m.form.View()
 	}
 
+	if m.confirm != nil {
+		m.confirm.width = m.width
+		m.confirm.height = m.height
+		return m.confirm.View()
+	}
+
 	var s strings.Builder
 
 	// Calculate layout
+	footerHeight := 2
+	if m.err != nil {
+		footerHeight = 3
+	}
 	sidebarWidth := 25
 	contentWidth := m.width - sidebarWidth - 1 // Match header width
-	mainHeight := m.height - 2
+	mainHeight := m.height - footerHeight
 
 	// Search box
 	searchStyle := focusedBorderStyle
@@ -261,8 +322,14 @@ func (m *DashboardModel) View() tea.View {
 	searchBox := searchStyle.Width(sidebarWidth).Render(searchText)
 
 	// Sidebar List
+	pageSize := mainHeight - 5
+	if pageSize < 1 {
+		pageSize = 1
+	}
+
 	var sidebarLines []string
-	for i, p := range m.projects {
+	for i := m.offset; i < len(m.projects) && i < m.offset+pageSize; i++ {
+		p := m.projects[i]
 		status := lipgloss.NewStyle().Foreground(Color.Secondary).Render("○")
 		if p.Active {
 			status = lipgloss.NewStyle().Foreground(Color.Success).Render("●")
@@ -359,7 +426,7 @@ func (m *DashboardModel) View() tea.View {
 	s.WriteString(mainView + "\n")
 
 	// Footer / Help
-	help := "[ctrl+n/p] Nav • [enter] Start • [ctrl+s] Stop • [ctrl+a] New • [ctrl+e] Edit • [ctrl+r] Refresh • [ctrl+q] Quit"
+	help := "[ctrl+n/p] Nav • [enter] Start • [ctrl+s] Stop • [ctrl+N] New • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
 	if m.err != nil {
 		s.WriteString(errorStyle.Render(fmt.Sprintf("!! Error: %v", m.err)) + "\n")
 	}

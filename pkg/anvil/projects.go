@@ -170,3 +170,27 @@ func StopProject(project *Project) error {
 	logger.Logf("Stopping project %s", project.Id)
 	return tmux.KillSession(project.Id)
 }
+
+func DeleteProject(id string) error {
+	logger.Logf("Deleting project: %s", id)
+	projects, err := LoadProjects()
+	if err != nil {
+		return err
+	}
+
+	foundIdx := -1
+	for i, p := range projects {
+		if p.Id == id {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		return fmt.Errorf("project with ID %s not found", id)
+	}
+
+	projects = append(projects[:foundIdx], projects[foundIdx+1:]...)
+
+	return SaveProjects(projects)
+}
