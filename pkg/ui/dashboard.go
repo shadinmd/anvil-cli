@@ -60,7 +60,6 @@ type DashboardModel struct {
 	err         error
 	form        *FormModel
 	searchQuery string
-	searching   bool
 }
 
 func NewDashboardModel() *DashboardModel {
@@ -112,64 +111,24 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		k := msg.String()
 
-		if k == "ctrl+c" {
-			return m, tea.Quit
-		}
-
-		if m.searching {
-			switch k {
-			case "esc":
-				m.searching = false
-				return m, nil
-			case "backspace":
-				if len(m.searchQuery) > 0 {
-					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-					m.filterProjects()
-				}
-				return m, nil
-			case "enter":
-				m.searching = false
-				if len(m.projects) > 0 {
-					// Proceed to select first result
-				} else {
-					return m, nil
-				}
-			case "space":
-				m.searchQuery += " "
-				m.filterProjects()
-				return m, nil
-			default:
-				if len(k) == 1 {
-					m.searchQuery += k
-					m.filterProjects()
-					return m, nil
-				}
-			}
-		}
-
 		switch k {
-		case "q", "esc":
+		case "ctrl+c", "ctrl+q", "esc":
 			return m, tea.Quit
 
-		case "/":
-			m.searching = true
-			m.cursor = 0
-			return m, nil
-
-		case "up", "k":
+		case "up", "ctrl+p":
 			if m.cursor > 0 {
 				m.cursor--
 			}
 
-		case "down", "j":
+		case "down", "ctrl+n":
 			if m.cursor < len(m.projects)-1 {
 				m.cursor++
 			}
 
-		case "n":
+		case "ctrl+N":
 			m.form = NewNewProjectForm()
 
-		case "e":
+		case "ctrl+e":
 			if len(m.projects) > 0 {
 				m.form = NewEditProjectForm(m.projects[m.cursor])
 			}
@@ -191,7 +150,7 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case "s":
+		case "ctrl+s":
 			if len(m.projects) > 0 {
 				p := &m.projects[m.cursor]
 				if p.Active {
@@ -205,9 +164,25 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case "r":
+		case "ctrl+r":
 			m.allProjects = anvil.GetAllProjects()
 			m.filterProjects()
+
+		case "backspace":
+			if len(m.searchQuery) > 0 {
+				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				m.filterProjects()
+			}
+
+		case "space":
+			m.searchQuery += " "
+			m.filterProjects()
+
+		default:
+			if len(k) == 1 {
+				m.searchQuery += k
+				m.filterProjects()
+			}
 		}
 	}
 
@@ -276,15 +251,14 @@ func (m *DashboardModel) View() tea.View {
 	mainHeight := m.height - 2
 
 	// Search box
-	searchStyle := borderStyle
+	searchStyle := focusedBorderStyle
 	searchText := m.searchQuery
-	if m.searching {
-		searchStyle = focusedBorderStyle
+	if searchText == "" {
+		searchText = helpStyle.Render("Type to search...")
+	} else {
 		searchText += lipgloss.NewStyle().Foreground(Color.Primary).Blink(true).Render("|")
-	} else if searchText == "" {
-		searchText = helpStyle.Render("Search...")
 	}
-	searchBox := searchStyle.Width(sidebarWidth).Render(" / " + searchText)
+	searchBox := searchStyle.Width(sidebarWidth).Render(searchText)
 
 	// Sidebar List
 	var sidebarLines []string
@@ -385,7 +359,7 @@ func (m *DashboardModel) View() tea.View {
 	s.WriteString(mainView + "\n")
 
 	// Footer / Help
-	help := "[/] Search • [enter] Start/Switch • [s] Stop • [n] New • [e] Edit • [r] Refresh • [q] Quit"
+	help := "[ctrl+n/p] Nav • [enter] Start • [ctrl+s] Stop • [ctrl+a] New • [ctrl+e] Edit • [ctrl+r] Refresh • [ctrl+q] Quit"
 	if m.err != nil {
 		s.WriteString(errorStyle.Render(fmt.Sprintf("!! Error: %v", m.err)) + "\n")
 	}

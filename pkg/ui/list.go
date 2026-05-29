@@ -10,16 +10,20 @@ import (
 )
 
 type ListModel struct {
-	projects []anvil.Project
-	cursor   int
-	Choice   *anvil.Project
-	width    int
-	height   int
+	allProjects []anvil.Project
+	projects    []anvil.Project
+	cursor      int
+	Choice      *anvil.Project
+	width       int
+	searchQuery string
+	quitting    bool
 }
 
 func NewListModel(projects []anvil.Project) *ListModel {
 	return &ListModel{
-		projects: projects,
+		allProjects: projects,
+		projects:    projects,
+		width:       80,
 	}
 }
 
@@ -27,23 +31,45 @@ func (m *ListModel) Init() tea.Cmd {
 	return nil
 }
 
+func (m *ListModel) filterProjects() {
+	if m.searchQuery == "" {
+		m.projects = m.allProjects
+	} else {
+		var filtered []anvil.Project
+		for _, p := range m.allProjects {
+			if fuzzyMatch(p.Name, m.searchQuery) || fuzzyMatch(p.Id, m.searchQuery) {
+				filtered = append(filtered, p)
+			}
+		}
+		m.projects = filtered
+	}
+
+	if m.cursor >= len(m.projects) {
+		m.cursor = 0
+		if len(m.projects) > 0 {
+			m.cursor = len(m.projects) - 1
+		}
+	}
+}
+
 func (m *ListModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		m.height = msg.Height
 
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		k := msg.String()
+		switch k {
+		case "ctrl+c", "esc":
+			m.quitting = true
 			return m, tea.Quit
 
-		case "up", "k":
+		case "up", "ctrl+p":
 			if m.cursor > 0 {
 				m.cursor--
 			}
 
-		case "down", "j":
+		case "down", "ctrl+n":
 			if m.cursor < len(m.projects)-1 {
 				m.cursor++
 			}
@@ -52,7 +78,24 @@ func (m *ListModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.projects) > 0 {
 				m.Choice = &m.projects[m.cursor]
 			}
+			m.quitting = true
 			return m, tea.Quit
+
+		case "backspace":
+			if len(m.searchQuery) > 0 {
+				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				m.filterProjects()
+			}
+
+		case "space":
+			m.searchQuery += " "
+			m.filterProjects()
+
+		default:
+			if len(k) == 1 {
+				m.searchQuery += k
+				m.filterProjects()
+			}
 		}
 	}
 
@@ -60,36 +103,54 @@ func (m *ListModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ListModel) View() tea.View {
+	if m.quitting {
+		return tea.NewView("")
+	}
+
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Width(m.width - 2).Render("Select Project") + "\n")
+	// Search prompt
+	prompt := lipgloss.NewStyle().Foreground(Color.Primary).Bold(true).Render("?")
+	label := lipgloss.NewStyle().Bold(true).Render(" Select project: ")
+	searchText := m.searchQuery
+	cursor := lipgloss.NewStyle().Foreground(Color.Primary).Blink(true).Render("|")
 
-	var items []string
-	for i, p := range m.projects {
+	s.WriteString(prompt + label + searchText + cursor + "\n")
+
+	// Results
+	maxResults := 10
+	start := 0
+	if m.cursor >= maxResults {
+		start = m.cursor - maxResults + 1
+	}
+
+	for i := start; i < len(m.projects) && i < start+maxResults; i++ {
+		p := m.projects[i]
+		pointer := "  "
+		style := lipgloss.NewStyle().Foreground(Color.Foreground)
+
+		if i == m.cursor {
+			pointer = lipgloss.NewStyle().Foreground(Color.Primary).Render("> ")
+			style = lipgloss.NewStyle().Foreground(Color.Primary).Bold(true)
+		}
+
 		status := lipgloss.NewStyle().Foreground(Color.Secondary).Render("○")
 		if p.Active {
 			status = lipgloss.NewStyle().Foreground(Color.Success).Render("●")
 		}
 
-		line := fmt.Sprintf("%s %s", status, p.Name)
-		if i == m.cursor {
-			items = append(items, selectedSidebarItemStyle.Render("> "+line))
-		} else {
-			items = append(items, sidebarItemStyle.Render("  "+line))
-		}
+		s.WriteString(fmt.Sprintf("%s%s %s\n", pointer, status, style.Render(p.Name)))
 	}
 
-	listView := borderStyle.
-		Width(m.width - 2).
-		Height(m.height - 6).
-		Render(strings.Join(items, "\n"))
+	if len(m.projects) == 0 {
+		s.WriteString(helpStyle.Render("  No matches found") + "\n")
+	}
 
-	s.WriteString(listView + "\n")
-	s.WriteString(statusStyle.Render("[↑/↓] Navigate • [enter] Select • [q] Quit"))
+	// Help line
+	help := helpStyle.Render("  (type to filter, ↑/↓ to navigate, enter to select, esc to cancel)")
+	s.WriteString(help)
 
-	v := tea.NewView(s.String())
-	v.AltScreen = true
-	return v
+	return tea.NewView(s.String())
 }
 
 func RunListUI(projects []anvil.Project) (*anvil.Project, error) {
