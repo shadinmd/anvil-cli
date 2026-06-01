@@ -169,7 +169,7 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.scrollToCursor()
 			}
 
-		case "ctrl+N":
+		case "ctrl+a":
 			m.form = NewNewProjectForm()
 
 		case "ctrl+e":
@@ -312,14 +312,14 @@ func (m *DashboardModel) View() tea.View {
 	mainHeight := m.height - footerHeight
 
 	// Search box
-	searchStyle := focusedBorderStyle
+	searchBoxStyle := focusedBorderStyle
 	searchText := m.searchQuery
 	if searchText == "" {
 		searchText = helpStyle.Render("Type to search...")
 	} else {
 		searchText += lipgloss.NewStyle().Foreground(Color.Primary).Blink(true).Render("|")
 	}
-	searchBox := searchStyle.Width(sidebarWidth).Render(searchText)
+	searchBox := searchBoxStyle.Width(sidebarWidth).Render(searchText)
 
 	// Sidebar List
 	pageSize := mainHeight - 5
@@ -426,7 +426,7 @@ func (m *DashboardModel) View() tea.View {
 	s.WriteString(mainView + "\n")
 
 	// Footer / Help
-	help := "[ctrl+n/p] Nav • [enter] Start • [ctrl+s] Stop • [ctrl+N] New • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
+	help := "[ctrl+n/p] Nav • [enter] Start • [ctrl+s] Stop • [ctrl+a] New • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
 	if m.err != nil {
 		s.WriteString(errorStyle.Render(fmt.Sprintf("!! Error: %v", m.err)) + "\n")
 	}
