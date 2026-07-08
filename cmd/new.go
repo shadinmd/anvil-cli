@@ -29,27 +29,35 @@ func NewNewCommand() *cobra.Command {
 			// If no project name is provided, show the interactive picker
 			if len(args) == 0 && templateName == "" {
 				projects := anvil.GetAllProjects()
-				if len(projects) == 0 {
-					fmt.Println("No projects available to use as templates.")
-					return
+				var activeProjects []anvil.Project
+				for _, p := range projects {
+					if !p.Archived {
+						activeProjects = append(activeProjects, p)
+					}
 				}
 
-				selected, isCancelled, err := ui.RunTemplatePicker(projects)
-				if err != nil {
-					fmt.Printf("Error picking template: %v\n", err)
-					return
-				}
-
-				if isCancelled {
-					fmt.Println("Cancelled.")
-					return
-				}
-
-				if selected != nil {
-					templateName = selected.Id
-					fmt.Printf("%s %s\n", labelStyle.Render("Using template:"), inputStyle.Bold(true).Render(selected.Name))
+				if len(activeProjects) == 0 {
+					// We can still create a blank project, so we don't return early here,
+					// but we won't show the template picker.
+					fmt.Println(labelStyle.Render("No active projects available to use as templates. Using [Blank Project]"))
 				} else {
-					fmt.Println(labelStyle.Render("Using template: [Blank Project]"))
+					selected, isCancelled, err := ui.RunTemplatePicker(activeProjects)
+					if err != nil {
+						fmt.Printf("Error picking template: %v\n", err)
+						return
+					}
+
+					if isCancelled {
+						fmt.Println("Cancelled.")
+						return
+					}
+
+					if selected != nil {
+						templateName = selected.Id
+						fmt.Printf("%s %s\n", labelStyle.Render("Using template:"), inputStyle.Bold(true).Render(selected.Name))
+					} else {
+						fmt.Println(labelStyle.Render("Using template: [Blank Project]"))
+					}
 				}
 
 				// Now ask for the new project name with style
@@ -96,6 +104,11 @@ func NewNewCommand() *cobra.Command {
 
 				if template == nil {
 					fmt.Printf("Error: Template project '%s' not found.\n", templateName)
+					return
+				}
+
+				if template.Archived {
+					fmt.Printf("Error: Template project '%s' is archived. Restore it first to use it as a template.\n", template.Name)
 					return
 				}
 

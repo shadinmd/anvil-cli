@@ -20,8 +20,20 @@ func NewStartCmd() *cobra.Command {
 			var project *anvil.Project
 
 			if len(args) == 0 {
+				var activeProjects []anvil.Project
+				for _, p := range projects {
+					if !p.Archived {
+						activeProjects = append(activeProjects, p)
+					}
+				}
+
+				if len(activeProjects) == 0 {
+					fmt.Println("No active projects found to start.")
+					return
+				}
+
 				var err error
-				project, err = ui.RunListUI(projects)
+				project, err = ui.RunListUI(activeProjects)
 				if err != nil {
 					fmt.Printf("Error showing selection UI: %v\n", err)
 					return
@@ -42,6 +54,11 @@ func NewStartCmd() *cobra.Command {
 
 				if project == nil {
 					fmt.Printf("Error: Project '%s' not found.\n", target)
+					return
+				}
+
+				if project.Archived {
+					fmt.Printf("Error: Project '%s' is archived.\nUse 'anvil unarchive %s' to restore it first.\n", project.Name, project.Id)
 					return
 				}
 			}

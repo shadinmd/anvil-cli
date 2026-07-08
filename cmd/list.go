@@ -17,15 +17,26 @@ func NewListCmd() *cobra.Command {
 		nameStyle     = lipgloss.NewStyle().Bold(true).Foreground(ui.Color.Primary)
 		dirStyle      = lipgloss.NewStyle().Foreground(ui.Color.Secondary)
 		titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(ui.Color.Primary).Underline(true)
+
+		showArchived bool
+		showAll      bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "list all projects",
+		Short: "list projects",
 		Run: func(cmd *cobra.Command, args []string) {
 
 			logger.Log("Fetching all projects")
-			projects := anvil.GetAllProjects()
+			allProjects := anvil.GetAllProjects()
+
+			var projects []anvil.Project
+			for _, p := range allProjects {
+				if showAll || (showArchived && p.Archived) || (!showArchived && !p.Archived) {
+					projects = append(projects, p)
+				}
+			}
+
 			logger.Logf("Found %d projects", len(projects))
 
 			if len(projects) == 0 {
@@ -39,10 +50,17 @@ func NewListCmd() *cobra.Command {
 				if p.Active {
 					status = activeStyle.Render("●")
 				}
-				fmt.Printf("%s %-20s %s\n", status, nameStyle.Render(p.Name), dirStyle.Render(p.Dir))
+				name := p.Name
+				if p.Archived {
+					name += " (archived)"
+				}
+				fmt.Printf("%s %-20s %s\n", status, nameStyle.Render(name), dirStyle.Render(p.Dir))
 			}
 		},
 	}
+
+	cmd.Flags().BoolVarP(&showArchived, "archived", "a", false, "list only archived projects")
+	cmd.Flags().BoolVarP(&showAll, "all", "A", false, "list all projects, including archived ones")
 
 	return cmd
 }

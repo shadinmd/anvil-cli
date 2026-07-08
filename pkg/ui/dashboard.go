@@ -52,24 +52,26 @@ var (
 )
 
 type DashboardModel struct {
-	allProjects []anvil.Project
-	projects    []anvil.Project
-	cursor      int
-	offset      int
-	width       int
-	height      int
-	err         error
-	form        *FormModel
-	confirm     *ConfirmModel
-	searchQuery string
+	allProjects  []anvil.Project
+	projects     []anvil.Project
+	cursor       int
+	offset       int
+	width        int
+	height       int
+	err          error
+	form         *FormModel
+	confirm      *ConfirmModel
+	searchQuery  string
+	showArchived bool
 }
 
 func NewDashboardModel() *DashboardModel {
 	projects := anvil.GetAllProjects()
-	return &DashboardModel{
+	m := &DashboardModel{
 		allProjects: projects,
-		projects:    projects,
 	}
+	m.filterProjects()
+	return m
 }
 
 func (m *DashboardModel) Init() tea.Cmd {
@@ -77,11 +79,15 @@ func (m *DashboardModel) Init() tea.Cmd {
 }
 
 func (m *DashboardModel) scrollToCursor() {
-	footerHeight := 2
+	headerHeight := 2
+	footerHeight := 3
 	if m.err != nil {
-		footerHeight = 3
+		footerHeight = 4
 	}
-	mainHeight := m.height - footerHeight
+	mainHeight := m.height - headerHeight - footerHeight
+	if mainHeight < 5 {
+		mainHeight = 5
+	}
 	pageSize := mainHeight - 5
 	if pageSize < 1 {
 		pageSize = 1
@@ -214,6 +220,32 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+		case "ctrl+x":
+			if len(m.projects) > 0 {
+				p := m.projects[m.cursor]
+				var err error
+				if p.Archived {
+					err = anvil.UnarchiveProject(p.Id)
+				} else {
+					if p.Active {
+						_ = anvil.StopProject(&p)
+					}
+					err = anvil.ArchiveProject(p.Id)
+				}
+				if err != nil {
+					m.err = err
+					logger.Logf("Dashboard error toggling archive: %v", err)
+				} else {
+					m.allProjects = anvil.GetAllProjects()
+					m.filterProjects()
+				}
+			}
+
+		case "ctrl+g":
+			m.showArchived = !m.showArchived
+			m.cursor = 0
+			m.filterProjects()
+
 		case "ctrl+r":
 			m.allProjects = anvil.GetAllProjects()
 			m.filterProjects()
@@ -262,11 +294,18 @@ func fuzzyMatch(s, query string) bool {
 }
 
 func (m *DashboardModel) filterProjects() {
+	var base []anvil.Project
+	for _, p := range m.allProjects {
+		if p.Archived == m.showArchived {
+			base = append(base, p)
+		}
+	}
+
 	if m.searchQuery == "" {
-		m.projects = m.allProjects
+		m.projects = base
 	} else {
 		var filtered []anvil.Project
-		for _, p := range m.allProjects {
+		for _, p := range base {
 			if fuzzyMatch(p.Name, m.searchQuery) || fuzzyMatch(p.Id, m.searchQuery) {
 				filtered = append(filtered, p)
 			}
@@ -303,19 +342,42 @@ func (m *DashboardModel) View() tea.View {
 	var s strings.Builder
 
 	// Calculate layout
-	footerHeight := 2
+	headerHeight := 2
+	footerHeight := 3
 	if m.err != nil {
-		footerHeight = 3
+		footerHeight = 4
 	}
 	sidebarWidth := 25
 	contentWidth := m.width - sidebarWidth - 1 // Match header width
-	mainHeight := m.height - footerHeight
+	mainHeight := m.height - headerHeight - footerHeight
+	if mainHeight < 5 {
+		mainHeight = 5
+	}
+
+	// Header
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(Color.Primary).
+		Align(lipgloss.Center).
+		Width(m.width)
+
+	var modeName string
+	if m.showArchived {
+		modeName = "ARCHIVED PROJECTS"
+	} else {
+		modeName = "ACTIVE PROJECTS"
+	}
+	s.WriteString(headerStyle.Render("ANVIL - "+modeName) + "\n\n")
 
 	// Search box
 	searchBoxStyle := focusedBorderStyle
 	searchText := m.searchQuery
 	if searchText == "" {
-		searchText = helpStyle.Render("Type to search...")
+		if m.showArchived {
+			searchText = helpStyle.Render("Search archived...")
+		} else {
+			searchText = helpStyle.Render("Type to search...")
+		}
 	} else {
 		searchText += lipgloss.NewStyle().Foreground(Color.Primary).Blink(true).Render("|")
 	}
@@ -413,7 +475,11 @@ func (m *DashboardModel) View() tea.View {
 		cb.WriteString(helpStyle.Render("Press [enter] to start or switch to this project."))
 		content = cb.String()
 	} else {
-		content = "No projects found.\nPress [n] to add your first project."
+		if m.showArchived {
+			content = "No archived projects found."
+		} else {
+			content = "No active projects found.\nPress [ctrl+a] to add your first project."
+		}
 	}
 
 	contentView := borderStyle.
@@ -426,11 +492,26 @@ func (m *DashboardModel) View() tea.View {
 	s.WriteString(mainView + "\n")
 
 	// Footer / Help
-	help := "[ctrl+n/p] Nav • [enter] Start • [ctrl+s] Stop • [ctrl+a] New • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
+	helpLine1 := "[ctrl+n/p] Nav • [enter] Start/Switch • [ctrl+s] Stop • [ctrl+x] "
+	if m.showArchived {
+		helpLine1 += "Restore"
+	} else {
+		helpLine1 += "Archive"
+	}
+	helpLine1 += " • [ctrl+g] "
+	if m.showArchived {
+		helpLine1 += "Show Active"
+	} else {
+		helpLine1 += "Show Archived"
+	}
+
+	helpLine2 := "[ctrl+a] New • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
+
 	if m.err != nil {
 		s.WriteString(errorStyle.Render(fmt.Sprintf("!! Error: %v", m.err)) + "\n")
 	}
-	s.WriteString(statusStyle.Render(help))
+	s.WriteString(statusStyle.Render(helpLine1) + "\n")
+	s.WriteString(statusStyle.Render(helpLine2))
 
 	v := tea.NewView(s.String())
 	v.AltScreen = true

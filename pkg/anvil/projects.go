@@ -9,11 +9,12 @@ import (
 )
 
 type Project struct {
-	Id      string   `json:"id"`
-	Name    string   `json:"name"`
-	Dir     string   `json:"dir"`
-	Windows []Window `json:"windows"`
-	Active  bool     `json:"-"`
+	Id       string   `json:"id"`
+	Name     string   `json:"name"`
+	Dir      string   `json:"dir"`
+	Windows  []Window `json:"windows"`
+	Active   bool     `json:"-"`
+	Archived bool     `json:"archived,omitempty"`
 }
 
 type Window struct {
@@ -192,5 +193,51 @@ func DeleteProject(id string) error {
 
 	projects = append(projects[:foundIdx], projects[foundIdx+1:]...)
 
+	return SaveProjects(projects)
+}
+
+func ArchiveProject(id string) error {
+	logger.Logf("Archiving project: %s", id)
+	projects, err := LoadProjects()
+	if err != nil {
+		return err
+	}
+
+	foundIdx := -1
+	for i, p := range projects {
+		if p.Id == id {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		return fmt.Errorf("project with ID %s not found", id)
+	}
+
+	projects[foundIdx].Archived = true
+	return SaveProjects(projects)
+}
+
+func UnarchiveProject(id string) error {
+	logger.Logf("Unarchiving project: %s", id)
+	projects, err := LoadProjects()
+	if err != nil {
+		return err
+	}
+
+	foundIdx := -1
+	for i, p := range projects {
+		if p.Id == id {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		return fmt.Errorf("project with ID %s not found", id)
+	}
+
+	projects[foundIdx].Archived = false
 	return SaveProjects(projects)
 }
