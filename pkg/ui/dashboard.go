@@ -178,6 +178,11 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+a":
 			m.form = NewNewProjectForm()
 
+		case "ctrl+t":
+			if len(m.projects) > 0 {
+				m.form = NewCopyProjectForm(m.projects[m.cursor])
+			}
+
 		case "ctrl+e":
 			if len(m.projects) > 0 {
 				m.form = NewEditProjectForm(m.projects[m.cursor])
@@ -505,7 +510,7 @@ func (m *DashboardModel) View() tea.View {
 		helpLine1 += "Show Archived"
 	}
 
-	helpLine2 := "[ctrl+a] New • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
+	helpLine2 := "[ctrl+a] New • [ctrl+t] Copy • [ctrl+e] Edit • [ctrl+d] Delete • [ctrl+r] Refresh • [ctrl+q] Quit"
 
 	if m.err != nil {
 		s.WriteString(errorStyle.Render(fmt.Sprintf("!! Error: %v", m.err)) + "\n")

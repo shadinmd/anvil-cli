@@ -55,6 +55,13 @@ func NewNewProjectForm() *FormModel {
 	return m
 }
 
+func NewCopyProjectForm(p anvil.Project) *FormModel {
+	m := NewEditProjectForm(p)
+	m.isEdit = false
+	m.targetId = ""
+	return m
+}
+
 func NewEditProjectForm(p anvil.Project) *FormModel {
 	m := &FormModel{
 		isEdit:   true,
